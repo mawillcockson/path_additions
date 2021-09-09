@@ -72,6 +72,7 @@ path_additions () {
 
     if [ -d "${ADD_TO_PATH_DIR}" ]; then
         for file in "${ADD_TO_PATH_DIR}"/*.sh ; do
+            # printf 'file -> "%s"\n' "${file}" # debug
             unset -f add_to_path > /dev/null 2>&1 || true
             if ! . "${file}"; then
                 echo "there was a problem with the file \"${file}\""
@@ -82,15 +83,22 @@ path_additions () {
                 printf "add_to_path() function not defined in \"${file}\"\n"
                 continue
             fi
-            if ! { ADDITION="$(add_to_path)" && [ -n "${ADDITION:-""}" ] ; } ; then
+            if ! { ADDITION="$(add_to_path)" && [ -n "${ADDITION:-""}" ] ; } > /dev/null 2>&1 ; then
                 # shellcheck disable=SC2059
                 printf "problem with add_to_path() function in \"${file}\"\n"
                 continue
             fi
-            # ADDITION="/bin:${HOME}/.local/bin"
+            # ADDITION="/bin:${HOME}/.local/bin" # debug
             # printf '$ADDITION -> "%s"\n' "${ADDITION:-""}" # debug
             COMPONENT="${ADDITION%%:*}"
-            ADDITION_REMAINING="${ADDITION#*:}:"
+            # printf 'starting $COMPONENT -> "%s"\n' "${COMPONENT:-""}" # debug
+            # If ADDITION has only one subpath
+            if [ "${COMPONENT:-""}" = "${ADDITION}" ]; then
+                ADDITION_REMAINING=""
+            else
+                ADDITION_REMAINING="${ADDITION#*:}:"
+            fi
+            # printf 'starting $ADDITION_REMAINING -> "%s"\n' "${ADDITION_REMAINING:-""}" # debug
             while [ -n "${COMPONENT:-""}" ] || [ -n "${ADDITION_REMAINING:-""}" ]; do
                 # printf '$COMPONENT -> "%s"\n' "${COMPONENT:-""}" # debug
                 # # if the shortest suffix matching the pattern '/'
@@ -106,12 +114,13 @@ path_additions () {
                 # if ! [ -d "${COMPONENT}" ]; then echo "$COMPONENT is not directory"; fi # debug
                 if [ -d "${COMPONENT}" ] && ! in_path "${COMPONENT}"; then
                     # printf 'would add "%s"\n' "${COMPONENT}" # debug
-                    ALL_ADDITIONS="${COMPONENT}:${ALL_ADDITIONS:-""}"
-                else
-                    # printf 'would not add "%s"\n' "${COMPONENT}" # debug
+                    PATH="${COMPONENT}:${PATH}"
+                # else printf 'would not add "%s"\n' "${COMPONENT}" # debug
                 fi
                 COMPONENT="${ADDITION_REMAINING%%:*}"
+                # printf 'new $COMPONENT -> "%s"\n' "${COMPONENT:-""}" # debug
                 ADDITION_REMAINING="${ADDITION_REMAINING#*:}"
+                # printf 'new $ADDITION_REMAINING -> "%s"\n' "${ADDITION_REMAINING:-""}" # debug
             done
         done
     fi
