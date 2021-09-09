@@ -21,5 +21,6 @@ test_parameter_expansion() {
     printf '"${PATH##*%s}"\t-> "%s"\n' "${2}" "${1##*"${2}"}"
     printf '"${PATH##%s*}"\t-> "%s"\n' "${2}" "${1##"${2}"*}"
     printf '"${PATH##*%s*}"\t-> "%s"\n' "${2}" "${1##*"${2}"*}"
+    return 0
 }
 test_parameter_expansion '/bin:' ':'

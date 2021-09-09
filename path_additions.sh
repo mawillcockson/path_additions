@@ -20,31 +20,6 @@
 # https://stackoverflow.com/a/15155077
 # https://stackoverflow.com/a/29949759
 # https://stackoverflow.com/a/11655875
-test_parameter_expansion() {
-    if [ "$#" -ne 2 ]; then
-        echo "need exactly two arguments: PATH and SEARCH"
-        return 1
-    fi
-
-    printf '"${PATH%%%s}"\t-> "%s"\n' "${2}" "${1%"${2}"}"
-    printf '"${PATH%%*%s}"\t-> "%s"\n' "${2}" "${1%*"${2}"}"
-    printf '"${PATH%%%s*}"\t-> "%s"\n' "${2}" "${1%"${2}"*}"
-    printf '"${PATH%%*%s*}"\t-> "%s"\n' "${2}" "${1%*"${2}"*}"
-    printf '"${PATH%%%%%s}"\t-> "%s"\n' "${2}" "${1%%"${2}"}"
-    printf '"${PATH%%%%*%s}"\t-> "%s"\n' "${2}" "${1%%*"${2}"}"
-    printf '"${PATH%%%%%s*}"\t-> "%s"\n' "${2}" "${1%%"${2}"*}"
-    printf '"${PATH%%%%*%s*}"\t-> "%s"\n' "${2}" "${1%%*"${2}"*}"
-    printf '"${PATH#%s}"\t-> "%s"\n' "${2}" "${1#"${2}"}"
-    printf '"${PATH#*%s}"\t-> "%s"\n' "${2}" "${1#*"${2}"}"
-    printf '"${PATH#%s*}"\t-> "%s"\n' "${2}" "${1#"${2}"*}"
-    printf '"${PATH#*%s*}"\t-> "%s"\n' "${2}" "${1#*"${2}"*}"
-    printf '"${PATH##%s}"\t-> "%s"\n' "${2}" "${1##"${2}"}"
-    printf '"${PATH##*%s}"\t-> "%s"\n' "${2}" "${1##*"${2}"}"
-    printf '"${PATH##%s*}"\t-> "%s"\n' "${2}" "${1##"${2}"*}"
-    printf '"${PATH##*%s*}"\t-> "%s"\n' "${2}" "${1##*"${2}"*}"
-    return 0
-}
-
 in_path() {
     if [ -z "${2:-""}" ]; then
         CURRENT_PATH="${PATH:-""}"
@@ -52,7 +27,10 @@ in_path() {
         CURRENT_PATH="${2}"
     fi
     PATH_COMPONENT="${CURRENT_PATH%%:*}"
-    # Adding a : to the end of the path left is critical, since:
+    # Adding a : to the end of the path left is critical, since parameter
+    # expansion can't trim a path with a character that isn't in the path, and
+    # it'd be harder to tell if there are any more PATH components left:
+    #
     # test_parameter_expansion '/bin' ':'
     # "${PATH%:}"     -> "/bin"
     # "${PATH%*:}"    -> "/bin"
@@ -112,8 +90,8 @@ path_additions () {
             # ADDITION="/bin:${HOME}/.local/bin"
             # printf '$ADDITION -> "%s"\n' "${ADDITION:-""}" # debug
             COMPONENT="${ADDITION%%:*}"
-            ADDITION_LEFT="${ADDITION#*:}:"
-            while [ -n "${COMPONENT:-""}" ] || [ -n "${ADDITION_LEFT:-""}" ]; do
+            ADDITION_REMAINING="${ADDITION#*:}:"
+            while [ -n "${COMPONENT:-""}" ] || [ -n "${ADDITION_REMAINING:-""}" ]; do
                 # printf '$COMPONENT -> "%s"\n' "${COMPONENT:-""}" # debug
                 # # if the shortest suffix matching the pattern '/'
                 # # is removed, is the string the same?
@@ -128,14 +106,18 @@ path_additions () {
                 # if ! [ -d "${COMPONENT}" ]; then echo "$COMPONENT is not directory"; fi # debug
                 if [ -d "${COMPONENT}" ] && ! in_path "${COMPONENT}"; then
                     # printf 'would add "%s"\n' "${COMPONENT}" # debug
-                    PATH="${COMPONENT}:${PATH}"
+                    ALL_ADDITIONS="${COMPONENT}:${ALL_ADDITIONS:-""}"
                 else
                     # printf 'would not add "%s"\n' "${COMPONENT}" # debug
                 fi
-                COMPONENT="${ADDITION_LEFT%%:*}"
-                ADDITION_LEFT="${ADDITION_LEFT#*:}"
+                COMPONENT="${ADDITION_REMAINING%%:*}"
+                ADDITION_REMAINING="${ADDITION_REMAINING#*:}"
             done
         done
+    fi
+    if [ -n "${ALL_ADDITIONS:-""}" ]; then
+        # printf '$ALL_ADDITIONS -> "%s"\n' "${ALL_ADDITIONS}" # debug
+        PATH="${ALL_ADDITIONS}:${PATH}"
     fi
     # NOTE:BUG Why does zsh close immediately after startup without this???
     # because zsh's "local" is completely different from POSIX "local"
@@ -148,7 +130,7 @@ path_additions () {
     # this case the -x option does not force the use of -g, i.e. exported
     # variables will be local to functions.
     # set +e
-    for name in ADD_TO_PATH_DIR file add_to_path ADDITION COMPONENT ADDITION_LEFT; do
+    for name in ADD_TO_PATH_DIR file add_to_path ADDITION COMPONENT ADDITION_REMAINING ALL_ADDITIONS; do
         unset -f "${name}" > /dev/null 2>&1 || true
     done
     # printf '$PATH -> "%s"\n' "${PATH:-""}" # debug
