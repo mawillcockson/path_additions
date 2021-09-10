@@ -74,18 +74,8 @@ path_additions () {
         for file in "${ADD_TO_PATH_DIR}"/*.sh ; do
             # printf 'file -> "%s"\n' "${file}" # debug
             unset -f add_to_path > /dev/null 2>&1 || true
-            if ! . "${file}"; then
+            if ! ADDITION="$(. "${file}")"; then
                 echo "there was a problem with the file \"${file}\""
-                continue
-            fi
-            if ! { command -v add_to_path ; } > /dev/null 2>&1; then
-                # shellcheck disable=SC2059
-                printf "add_to_path() function not defined in \"${file}\"\n"
-                continue
-            fi
-            if ! { ADDITION="$(add_to_path)" && [ -n "${ADDITION:-""}" ] ; } > /dev/null 2>&1 ; then
-                # shellcheck disable=SC2059
-                printf "problem with add_to_path() function in \"${file}\"\n"
                 continue
             fi
             # ADDITION="/bin:${HOME}/.local/bin" # debug
@@ -114,7 +104,11 @@ path_additions () {
                 # if ! [ -d "${COMPONENT}" ]; then echo "$COMPONENT is not directory"; fi # debug
                 if [ -d "${COMPONENT}" ] && ! in_path "${COMPONENT}"; then
                     # printf 'would add "%s"\n' "${COMPONENT}" # debug
-                    PATH="${COMPONENT}:${PATH}"
+                    if [ -z "${ALL_ADDITIONS:-""}" ]; then
+                        ALL_ADDITIONS="${COMPONENT}"
+                    else
+                        ALL_ADDITIONS="${COMPONENT}:${ALL_ADDITIONS:-""}"
+                    fi
                 # else printf 'would not add "%s"\n' "${COMPONENT}" # debug
                 fi
                 COMPONENT="${ADDITION_REMAINING%%:*}"
@@ -139,7 +133,7 @@ path_additions () {
     # this case the -x option does not force the use of -g, i.e. exported
     # variables will be local to functions.
     # set +e
-    for name in ADD_TO_PATH_DIR file add_to_path ADDITION COMPONENT ADDITION_REMAINING ALL_ADDITIONS; do
+    for name in ADD_TO_PATH_DIR file ADDITION COMPONENT ADDITION_REMAINING ALL_ADDITIONS; do
         unset -f "${name}" > /dev/null 2>&1 || true
     done
     # printf '$PATH -> "%s"\n' "${PATH:-""}" # debug
