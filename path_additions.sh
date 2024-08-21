@@ -18,8 +18,12 @@
 # https://stackoverflow.com/a/29949759
 # https://stackoverflow.com/a/11655875
 
-. ./in_path.sh
-. ./log.sh
+if ! command -v in_path >/dev/null 2>&1; then
+    . ./in_path.sh
+fi
+if ! command -v log >/dev/null 2>&1; then
+    . ./log.sh
+fi
 
 path_additions () {
     # zsh does not follow POSIX field splitting by default:
