@@ -50,7 +50,7 @@ path_additions () {
         COMPONENT="${ADDITION%%:*}"
         # log DEBUG "starting \$COMPONENT -> \"${COMPONENT:-""}\""
         # If ADDITION has only one subpath
-        if [ "x${COMPONENT:-""}x" = "x${ADDITION}x" ]; then
+        if [ "${COMPONENT:-""}" = "${ADDITION}" ]; then
             ADDITION_REMAINING=""
         else
             ADDITION_REMAINING="${ADDITION#*:}:"
