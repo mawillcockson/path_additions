@@ -1,6 +1,14 @@
 in_path() {
-    PATH_COMPONENT="${PATH%%:*}"
-    # Adding a : to the end of the path left is critical, since:
+    if [ -z "${2:-""}" ]; then
+        CURRENT_PATH="${PATH:-""}"
+    else
+        CURRENT_PATH="${2}"
+    fi
+    PATH_COMPONENT="${CURRENT_PATH%%:*}"
+    # Adding a : to the end of the path left is critical, since parameter
+    # expansion can't trim a path with a character that isn't in the path, and
+    # it'd be harder to tell if there are any more PATH components left:
+    #
     # test_parameter_expansion '/bin' ':'
     # "${PATH%:}"     -> "/bin"
     # "${PATH%*:}"    -> "/bin"
@@ -18,7 +26,7 @@ in_path() {
     # "${PATH##*:}"   -> "/bin"
     # "${PATH##:*}"   -> "/bin"
     # "${PATH##*:*}"  -> "/bin"
-    PATH_LEFT="${PATH#*:}:"
+    PATH_LEFT="${CURRENT_PATH#*:}:"
     while [ -n "${PATH_COMPONENT:-""}" ] || [ -n "${PATH_LEFT:-""}" ]; do
         if [ "${1:-""}" = "${PATH_COMPONENT}" ]; then
             return 0
@@ -26,39 +34,8 @@ in_path() {
         PATH_COMPONENT="${PATH_LEFT%%:*}"
         PATH_LEFT="${PATH_LEFT#*:}"
     done
-    for var in  PATH_COMPONENT PATH_LEFT; do
-        unset -v "${var}" > /dev/null 2>&1 || true
-    done
+    unset -v PATH_COMPONENT > /dev/null 2>&1 || true
+    unset -v PATH_LEFT > /dev/null 2>&1 || true
     return 1
 }
-
-test_in_path() {
-    if [ "$#" -ne 1 ]; then
-        echo "1 arg required: DIR"
-        return 1
-    fi
-    if in_path "${1:-""}"; then
-        printf '"%s" yes\n' "${1:-""}"
-    else
-        printf '"%s" no\n' "${1:-""}"
-    fi
-    return 0
-}
-PATH="/bin:/usr/bin"
-printf '$PATH -> "%s"\n' "${PATH:-""}"
-test_in_path "/binn"
-test_in_path "/bin"
-test_in_path ":"
-test_in_path ''
-PATH=":/bin:/usr/bin"
-printf '$PATH -> "%s"\n' "${PATH:-""}"
-test_in_path ":"
-test_in_path ''
-PATH=":"
-printf '$PATH -> "%s"\n' "${PATH:-""}"
-test_in_path ":"
-test_in_path ''
-PATH=""
-printf '$PATH -> "%s"\n' "${PATH:-""}"
-test_in_path ":"
-test_in_path ''
+export in_path

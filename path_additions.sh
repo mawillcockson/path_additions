@@ -2,64 +2,24 @@
 # shellcheck enable=all
 ## PATH modification ##
 # This expects a directory ~/.profile.d/add-to-path/ to be present.
-# Each file in this directory should have an add_to_path() function defined
-# that, when called, prints out the string to add to the PATH environment
-# variable.
+# Each .sh file in this directory should, upon being run, print out the content
+# to be added to the $PATH. Each directory should be separated with : and not
+# newlines.
 #
 # For example:
 #
-# add_to_path() {
-#     echo "$HOME/apps/custom_app/bin:$HOME/.custom_app/bin"
-#     return 0
-# }
+# echo "$HOME/apps/custom_app/bin:$HOME/.custom_app/bin"
 #
 # Each component in the string will be checked to see if it points to a
-# directory, and if it's already defined in PATH.
+# directory, and if it's already defined in $PATH.
 #
 # help from:
 # https://stackoverflow.com/a/15155077
 # https://stackoverflow.com/a/29949759
 # https://stackoverflow.com/a/11655875
-in_path() {
-    if [ -z "${2:-""}" ]; then
-        CURRENT_PATH="${PATH:-""}"
-    else
-        CURRENT_PATH="${2}"
-    fi
-    PATH_COMPONENT="${CURRENT_PATH%%:*}"
-    # Adding a : to the end of the path left is critical, since parameter
-    # expansion can't trim a path with a character that isn't in the path, and
-    # it'd be harder to tell if there are any more PATH components left:
-    #
-    # test_parameter_expansion '/bin' ':'
-    # "${PATH%:}"     -> "/bin"
-    # "${PATH%*:}"    -> "/bin"
-    # "${PATH%:*}"    -> "/bin"
-    # "${PATH%*:*}"   -> "/bin"
-    # "${PATH%%:}"    -> "/bin"
-    # "${PATH%%*:}"   -> "/bin"
-    # "${PATH%%:*}"   -> "/bin"
-    # "${PATH%%*:*}"  -> "/bin"
-    # "${PATH#:}"     -> "/bin"
-    # "${PATH#*:}"    -> "/bin"
-    # "${PATH#:*}"    -> "/bin"
-    # "${PATH#*:*}"   -> "/bin"
-    # "${PATH##:}"    -> "/bin"
-    # "${PATH##*:}"   -> "/bin"
-    # "${PATH##:*}"   -> "/bin"
-    # "${PATH##*:*}"  -> "/bin"
-    PATH_LEFT="${CURRENT_PATH#*:}:"
-    while [ -n "${PATH_COMPONENT:-""}" ] || [ -n "${PATH_LEFT:-""}" ]; do
-        if [ "${1:-""}" = "${PATH_COMPONENT}" ]; then
-            return 0
-        fi
-        PATH_COMPONENT="${PATH_LEFT%%:*}"
-        PATH_LEFT="${PATH_LEFT#*:}"
-    done
-    unset -v PATH_COMPONENT > /dev/null 2>&1 || true
-    unset -v PATH_LEFT > /dev/null 2>&1 || true
-    return 1
-}
+
+. ./in_path.sh
+. ./log.sh
 
 path_additions () {
     # zsh does not follow POSIX field splitting by default:
@@ -68,58 +28,61 @@ path_additions () {
     # https://stackoverflow.com/a/6715447
     # https://stackoverflow.com/a/49628419
     ADD_TO_PATH_DIR="${HOME:?""}/.profile.d/add-to-path"
-    # printf '$PATH -> "%s"\n' "${PATH:-""}" # debug
+    # log DEBUG "\$PATH -> \"${PATH:-""}\"" # debug
 
-    if [ -d "${ADD_TO_PATH_DIR}" ]; then
-        for file in "${ADD_TO_PATH_DIR}"/*.sh ; do
-            # printf 'file -> "%s"\n' "${file}" # debug
-            unset -f add_to_path > /dev/null 2>&1 || true
-            if ! ADDITION="$(. "${file}")"; then
-                echo "there was a problem with the file \"${file}\""
-                continue
-            fi
-            # ADDITION="/bin:${HOME}/.local/bin" # debug
-            # printf '$ADDITION -> "%s"\n' "${ADDITION:-""}" # debug
-            COMPONENT="${ADDITION%%:*}"
-            # printf 'starting $COMPONENT -> "%s"\n' "${COMPONENT:-""}" # debug
-            # If ADDITION has only one subpath
-            if [ "${COMPONENT:-""}" = "${ADDITION}" ]; then
-                ADDITION_REMAINING=""
-            else
-                ADDITION_REMAINING="${ADDITION#*:}:"
-            fi
-            # printf 'starting $ADDITION_REMAINING -> "%s"\n' "${ADDITION_REMAINING:-""}" # debug
-            while [ -n "${COMPONENT:-""}" ] || [ -n "${ADDITION_REMAINING:-""}" ]; do
-                # printf '$COMPONENT -> "%s"\n' "${COMPONENT:-""}" # debug
-                # # if the shortest suffix matching the pattern '/'
-                # # is removed, is the string the same?
-                # # -> does the string end in a / character?
-                # if [ "${component%'/'}" != "$component" ]; then
-                # if the longest prefix ending in / is removed, is the string empty?
-                # -> does the string end in a / character?
-                if [ -z "${COMPONENT##*/}" ]; then
-                    # echo "ends with /" # debug
-                    COMPONENT="${COMPONENT%/}"
-                fi
-                # if ! [ -d "${COMPONENT}" ]; then echo "$COMPONENT is not directory"; fi # debug
-                if [ -d "${COMPONENT}" ] && ! in_path "${COMPONENT}"; then
-                    # printf 'would add "%s"\n' "${COMPONENT}" # debug
-                    if [ -z "${ALL_ADDITIONS:-""}" ]; then
-                        ALL_ADDITIONS="${COMPONENT}"
-                    else
-                        ALL_ADDITIONS="${COMPONENT}:${ALL_ADDITIONS:-""}"
-                    fi
-                # else printf 'would not add "%s"\n' "${COMPONENT}" # debug
-                fi
-                COMPONENT="${ADDITION_REMAINING%%:*}"
-                # printf 'new $COMPONENT -> "%s"\n' "${COMPONENT:-""}" # debug
-                ADDITION_REMAINING="${ADDITION_REMAINING#*:}"
-                # printf 'new $ADDITION_REMAINING -> "%s"\n' "${ADDITION_REMAINING:-""}" # debug
-            done
-        done
+    if ! [ -d "${ADD_TO_PATH_DIR}" ]; then
+        log WARNING "no directory found at \"${ADD_TO_PATH_DIR}\""
     fi
+
+    for file in "${ADD_TO_PATH_DIR}"/*.sh ; do
+        # log DEBUG "\$file -> \"${file}\""
+        # shellcheck disable=SC1090
+        if ! ADDITION="$(. "${file}")"; then
+            log WARNING "there was a problem with the file \"${file}\""
+            continue
+        fi
+        # ADDITION="/bin:${HOME}/.local/bin" # debug
+        # log DEBUG "\$ADDITION -> \"${ADDITION:-""}\""
+        COMPONENT="${ADDITION%%:*}"
+        # log DEBUG "starting \$COMPONENT -> \"${COMPONENT:-""}\""
+        # If ADDITION has only one subpath
+        if [ "x${COMPONENT:-""}x" = "x${ADDITION}x" ]; then
+            ADDITION_REMAINING=""
+        else
+            ADDITION_REMAINING="${ADDITION#*:}:"
+        fi
+        # log DEBUG "starting \$ADDITION_REMAINING -> \"${ADDITION_REMAINING:-""}\""
+        while [ -n "${COMPONENT:-""}" ] || [ -n "${ADDITION_REMAINING:-""}" ]; do
+            # if the longest prefix ending in / is removed, is the string empty?
+            # -> does the string end in a / character?
+            if [ -z "${COMPONENT##*/}" ]; then
+                # log DEBUG "\$COMPONENT ends with /"
+                # trim a single trailing slash
+                COMPONENT="${COMPONENT%/}"
+            fi
+            if [ -z "${COMPONENT##*/}" ]; then
+                log WARNING "\$COMPONENT had its last / removed, and it still has a trailing slash! -> \"${COMPONENT}\""
+            fi
+            # ! [ -d "${COMPONENT}" ] && log DEBUG "\"${COMPONENT}\" is not directory"
+            if [ -d "${COMPONENT}" ] && ! in_path "${COMPONENT}"; then
+                # log DEBUG "adding \"${COMPONENT}\""
+                if [ -z "${ALL_ADDITIONS:-""}" ]; then
+                    ALL_ADDITIONS="${COMPONENT}"
+                else
+                    ALL_ADDITIONS="${COMPONENT}:${ALL_ADDITIONS}"
+                fi
+            else
+                log WARNING "\"${COMPONENT}\" doesn't exist, so not adding to \$PATH"
+            fi
+            COMPONENT="${ADDITION_REMAINING%%:*}"
+            # log DEBUG "new \$COMPONENT -> \"${COMPONENT:-""}\""
+            ADDITION_REMAINING="${ADDITION_REMAINING#*:}"
+            # log DEBUG "new \$ADDITION_REMAINING -> \"${ADDITION_REMAINING:-""}\""
+        done
+    done
+
     if [ -n "${ALL_ADDITIONS:-""}" ]; then
-        # printf '$ALL_ADDITIONS -> "%s"\n' "${ALL_ADDITIONS}" # debug
+        # log DEBUG "\$ALL_ADDITIONS -> \"${ALL_ADDITIONS}\""
         PATH="${ALL_ADDITIONS}:${PATH}"
     fi
     # NOTE:BUG Why does zsh close immediately after startup without this???
@@ -134,9 +97,9 @@ path_additions () {
     # variables will be local to functions.
     # set +e
     for name in ADD_TO_PATH_DIR file ADDITION COMPONENT ADDITION_REMAINING ALL_ADDITIONS; do
-        unset -f "${name}" > /dev/null 2>&1 || true
+        unset -v "${name}" > /dev/null 2>&1 || true
     done
-    # printf '$PATH -> "%s"\n' "${PATH:-""}" # debug
+    # log DEBUG "\$PATH -> \"${PATH:-""}\""
     return 0
 }
-path_additions
+export path_additions
