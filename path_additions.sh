@@ -18,10 +18,16 @@
 # https://stackoverflow.com/a/29949759
 # https://stackoverflow.com/a/11655875
 
+# normally, these files are sourced before this file, so they'll already be
+# present
 if ! command -v in_path >/dev/null 2>&1; then
     . ./in_path.sh
 fi
-if ! command -v log >/dev/null 2>&1; then
+if ! {
+    command -v log >/dev/null 2>&1 \
+    && \
+    command -v shell_is_interactive >/dev/null 2>&1
+}; then
     . ./log.sh
 fi
 
@@ -34,15 +40,15 @@ path_additions () {
     ADD_TO_PATH_DIR="${HOME:?""}/.profile.d/add-to-path"
     # log DEBUG "\$PATH -> \"${PATH:-""}\"" # debug
 
-    if ! [ -d "${ADD_TO_PATH_DIR}" ]; then
-        log WARNING "no directory found at \"${ADD_TO_PATH_DIR}\""
+    if ! test -d "${ADD_TO_PATH_DIR}"; then
+        shell_is_interactive && log WARNING "no directory found at \"${ADD_TO_PATH_DIR}\""
     fi
 
     for file in "${ADD_TO_PATH_DIR}"/*.sh ; do
         # log DEBUG "\$file -> \"${file}\""
         # shellcheck disable=SC1090
         if ! ADDITION="$(. "${file}")"; then
-            log WARNING "there was a problem with the file \"${file}\""
+            shell_is_interactive && log WARNING "there was a problem with the file \"${file}\""
             continue
         fi
         # ADDITION="/bin:${HOME}/.local/bin" # debug
@@ -56,27 +62,27 @@ path_additions () {
             ADDITION_REMAINING="${ADDITION#*:}:"
         fi
         # log DEBUG "starting \$ADDITION_REMAINING -> \"${ADDITION_REMAINING:-""}\""
-        while [ -n "${COMPONENT:-""}" ] || [ -n "${ADDITION_REMAINING:-""}" ]; do
+        while test -n "${COMPONENT:-""}" || test -n "${ADDITION_REMAINING:-""}"; do
             # if the longest prefix ending in / is removed, is the string empty?
             # -> does the string end in a / character?
-            if [ -z "${COMPONENT##*/}" ]; then
+            if test -z "${COMPONENT##*/}"; then
                 # log DEBUG "\$COMPONENT ends with /"
                 # trim a single trailing slash
                 COMPONENT="${COMPONENT%/}"
             fi
-            if [ -z "${COMPONENT##*/}" ]; then
-                log WARNING "\$COMPONENT had its last / removed, and it still has a trailing slash! -> \"${COMPONENT}\""
+            if test -z "${COMPONENT##*/}"; then
+                shell_is_interactive && log WARNING "\$COMPONENT had its last / removed, and it still has a trailing slash! -> \"${COMPONENT}\""
             fi
-            # ! [ -d "${COMPONENT}" ] && log DEBUG "\"${COMPONENT}\" is not directory"
-            if [ -d "${COMPONENT}" ] && ! in_path "${COMPONENT}"; then
+            # ! test -d "${COMPONENT}" && log DEBUG "\"${COMPONENT}\" is not directory"
+            if test -d "${COMPONENT}" && ! in_path "${COMPONENT}"; then
                 # log DEBUG "adding \"${COMPONENT}\""
-                if [ -z "${ALL_ADDITIONS:-""}" ]; then
+                if test -z "${ALL_ADDITIONS:-""}"; then
                     ALL_ADDITIONS="${COMPONENT}"
                 else
                     ALL_ADDITIONS="${COMPONENT}:${ALL_ADDITIONS}"
                 fi
             else
-                log WARNING "\"${COMPONENT}\" doesn't exist, so not adding to \$PATH"
+                shell_is_interactive && log WARNING "\"${COMPONENT}\" doesn't exist, so not adding to \$PATH"
             fi
             COMPONENT="${ADDITION_REMAINING%%:*}"
             # log DEBUG "new \$COMPONENT -> \"${COMPONENT:-""}\""
@@ -85,7 +91,7 @@ path_additions () {
         done
     done
 
-    if [ -n "${ALL_ADDITIONS:-""}" ]; then
+    if test -n "${ALL_ADDITIONS:-""}"; then
         # log DEBUG "\$ALL_ADDITIONS -> \"${ALL_ADDITIONS}\""
         PATH="${ALL_ADDITIONS}:${PATH}"
     fi
